@@ -2,10 +2,24 @@ package main
 
 import (
 	"fmt"
-	"github.com/gdamore/tcell/v2"
 	"log"
 	"math/rand"
 	"os"
+	"time"
+
+	"github.com/gdamore/tcell/v2"
+)
+
+const (
+	gameWinHeight = 10
+	gameWinWidth  = 25
+
+	DirectionUp = iota
+	DirectionDown
+	DirectionLeft
+	DirectionRight
+
+	tickTimeMS = 300
 )
 
 type Point struct {
@@ -13,66 +27,15 @@ type Point struct {
 	Y int
 }
 
-type Window struct {
-	Point  Point
-	Width  int
-	Height int
-}
-
-func (w *Window) Draw(s tcell.Screen) error {
-	sWidth, sHeight := s.Size()
-
-	x2 := w.Point.X + w.Width
-	y2 := w.Point.Y + w.Height
-
-	if w.Point.X > sWidth || w.Point.Y > sHeight || w.Point.X < 0 || w.Point.Y < 0 || x2 > sWidth || y2 > sHeight {
-		return fmt.Errorf("%+v struct is invalid. Screen width, height are %v, %v", w, sWidth, sHeight)
-	}
-
-	for col := w.Point.X; col <= x2; col++ {
-		s.SetContent(col, w.Point.Y, tcell.RuneHLine, nil, tcell.StyleDefault)
-		s.SetContent(col, y2, tcell.RuneHLine, nil, tcell.StyleDefault)
-	}
-
-	for row := w.Point.Y; row <= y2; row++ {
-		s.SetContent(w.Point.X, row, tcell.RuneVLine, nil, tcell.StyleDefault)
-		s.SetContent(x2, row, tcell.RuneVLine, nil, tcell.StyleDefault)
-	}
-
-	if w.Point.Y != x2 && w.Point.Y != y2 {
-		s.SetContent(w.Point.X, w.Point.Y, tcell.RuneULCorner, nil, tcell.StyleDefault)
-		s.SetContent(x2, w.Point.Y, tcell.RuneURCorner, nil, tcell.StyleDefault)
-		s.SetContent(w.Point.X, y2, tcell.RuneLLCorner, nil, tcell.StyleDefault)
-		s.SetContent(x2, y2, tcell.RuneLRCorner, nil, tcell.StyleDefault)
-	}
-
-	return nil
-}
-
-func (w *Window) SetContent(x int, y int, ch rune, s tcell.Screen) {
-	s.SetContent(w.Point.X+x, w.Point.Y+y, ch, nil, tcell.StyleDefault)
-}
-
 func getPellet(w *Window) Point {
 
-	x := rand.Intn(w.Width) 
-	y := rand.Intn(w.Height)
+	x := rand.Intn(w.Width-1) + 1
+	y := rand.Intn(w.Height-1) + 1
 
 	return Point{x, y}
 }
 
 func main() {
-	const (
-		gameWinHeight = 10
-		gameWinWidth  = 25
-	)
-
-	const (
-		directionUp    = iota
-		directionDown  = iota
-		directionLeft  = iota
-		directionRight = iota
-	)
 
 	s, err := tcell.NewScreen()
 	if err != nil {
@@ -86,18 +49,21 @@ func main() {
 
 	s.SetStyle(tcell.StyleDefault)
 
-	type snake struct {
-		Segments  [gameWinHeight * gameWinWidth]Point
-		Direction int
-		Length    int
-	}
-
-	//snk := snake{[gameWinHeight * gameWinWidth]Point{}, directionRight, 1}
-
 	quit := func() {
 		s.Fini()
 		os.Exit(0)
 	}
+
+	gameOver := func() {
+		s.Fini()
+		fmt.Println("GAME OVER!")
+		os.Exit(0)
+	}
+
+	snk := Snake{[gameWinHeight * gameWinWidth]Point{}, DirectionRight, 3}
+	snk.Segments[0] = Point{4, 2}
+	snk.Segments[1] = Point{3, 2}
+	snk.Segments[2] = Point{2, 2}
 
 	processKeyEvent := func(kev *tcell.EventKey) {
 		keyRune := kev.Rune()
@@ -105,6 +71,14 @@ func main() {
 		switch keyRune {
 		case 'q', 'Q':
 			quit()
+		case 'j', 'J':
+			snk.Direction = DirectionDown
+		case 'k', 'K':
+			snk.Direction = DirectionUp
+		case 'h', 'H':
+			snk.Direction = DirectionLeft
+		case 'l', 'L':
+			snk.Direction = DirectionRight
 		}
 	}
 
@@ -118,18 +92,39 @@ func main() {
 	pX := (sWidth / 2) - (gameWinWidth / 2)
 	pY := (sHeight / 2) - (gameWinHeight / 2)
 	w := Window{Point{pX, pY}, gameWinWidth, gameWinHeight}
+
+	err = w.RenderBorder(s)
+	if err != nil {
+		s.Fini()
+		panic(err)
+	}
+
 	pelletPoint := getPellet(&w)
-	w.SetContent(pelletPoint.X, pelletPoint.Y, tcell.RuneDiamond, s)
+
+	collisionHandler := func() {
+		head := snk.Head()
+		// Collides with walls?
+		if head.X == 0 || head.X == w.Width || head.Y == 0 || head.Y == w.Height{
+			gameOver()
+		}
+
+		if *head == pelletPoint {
+			snk.Increment()
+		}
+	}
 
 	for {
 		s.Show()
-		ev := s.PollEvent()
-		processEvent(ev)
-		err := w.Draw(s)
-		if err != nil {
-			s.Fini()
-			panic(err)
+		if s.HasPendingEvent() {
+			ev := s.PollEvent()
+			processEvent(ev)
 		}
+		time.Sleep(tickTimeMS * time.Millisecond)
+		w.Clear(s)
+		collisionHandler()
+		snk.Update()
+		w.SetContent(pelletPoint.X, pelletPoint.Y, tcell.RuneDiamond, s)
+		snk.Render(&w, s)
 	}
 
 }
