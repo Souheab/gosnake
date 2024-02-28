@@ -19,6 +19,8 @@ const (
 	DirectionLeft
 	DirectionRight
 
+	SnakeChar = 'o'
+
 	tickTimeMS = 300
 )
 
@@ -60,6 +62,8 @@ func main() {
 		os.Exit(0)
 	}
 
+	gameOverFlag := false
+
 	snk := Snake{[gameWinHeight * gameWinWidth]Point{}, DirectionRight, 3}
 	snk.Segments[0] = Point{4, 2}
 	snk.Segments[1] = Point{3, 2}
@@ -67,7 +71,6 @@ func main() {
 
 	processKeyEvent := func(kev *tcell.EventKey) {
 		keyRune := kev.Rune()
-		s.SetContent(0, 0, keyRune, nil, tcell.StyleDefault)
 		switch keyRune {
 		case 'q', 'Q':
 			quit()
@@ -102,14 +105,32 @@ func main() {
 	pelletPoint := getPellet(&w)
 
 	collisionHandler := func() {
-		head := snk.Head()
+		headCopy := *snk.Head()
 		// Collides with walls?
-		if head.X == 0 || head.X == w.Width || head.Y == 0 || head.Y == w.Height{
+		if headCopy.X == 0 || headCopy.X == w.Width || headCopy.Y == 0 || headCopy.Y == w.Height{
 			gameOver()
 		}
 
-		if *head == pelletPoint {
+		// Collides with pellet?
+		if headCopy == pelletPoint {
 			snk.Increment()
+			pelletPoint = getPellet(&w)
+		}
+
+		// Collides with itself?
+		switch snk.Direction {
+		case DirectionLeft:
+			headCopy.X--
+		case DirectionRight:
+			headCopy.X++
+		case DirectionUp:
+			headCopy.Y--
+		case DirectionDown:
+			headCopy.Y++
+		}
+		ch, _, _ , _ := w.GetContentAtPoint(&headCopy, s)
+		if ch == SnakeChar {
+			gameOverFlag = true
 		}
 	}
 
@@ -120,11 +141,14 @@ func main() {
 			processEvent(ev)
 		}
 		time.Sleep(tickTimeMS * time.Millisecond)
-		w.Clear(s)
 		collisionHandler()
-		snk.Update()
+		w.Clear(s)
 		w.SetContent(pelletPoint.X, pelletPoint.Y, tcell.RuneDiamond, s)
+		snk.Update()
 		snk.Render(&w, s)
+		if gameOverFlag {
+			gameOver()
+		}
 	}
 
 }

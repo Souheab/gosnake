@@ -40,7 +40,7 @@ func (w *Window) RenderBorder(s tcell.Screen) error {
 	return nil
 }
 
-func (w *Window) SetContent(x int, y int, ch rune, s tcell.Screen) {
+func (w *Window) SetContent(x , y int, ch rune, s tcell.Screen) {
 	s.SetContent(w.Point.X+x, w.Point.Y+y, ch, nil, tcell.StyleDefault)
 }
 
@@ -52,6 +52,14 @@ func (w *Window) SetContentAtPoints(p []Point, ch rune, s tcell.Screen) {
 	for _, value := range p {
 		w.SetContentAtPoint(&value, ch, s)
 	}
+}
+
+func (w *Window) GetContent(x, y int, s tcell.Screen) (primary rune, combining []rune, style tcell.Style, width int) {
+	return s.GetContent(w.Point.X + x, w.Point.Y + y)
+}
+
+func (w *Window) GetContentAtPoint(p *Point, s tcell.Screen) (primary rune, combining []rune, style tcell.Style, width int) {
+	return w.GetContent(p.X, p.Y, s )
 }
 
 func (w *Window) Clear(s tcell.Screen) {

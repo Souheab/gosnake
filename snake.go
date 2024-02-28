@@ -36,7 +36,7 @@ func (s *Snake) Update() {
 }
 
 func (snk *Snake) Render(w *Window, s tcell.Screen) {
-	w.SetContentAtPoints(snk.Segments[:snk.Length], 'o', s)
+	w.SetContentAtPoints(snk.Segments[:snk.Length], SnakeChar, s)
 }
 
 func (s *Snake) Increment() {
